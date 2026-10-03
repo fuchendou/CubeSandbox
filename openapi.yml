@@ -999,24 +999,39 @@ paths:
           type: string
       - name: nextToken
         in: query
+        description: Opaque node-window cursor returned in X-Next-Token; omit for the first page.
         required: false
         schema:
           type: string
       - name: limit
         in: query
+        description: Raw node window size, not the number of matching sandboxes.
         required: false
         schema:
           type: integer
           format: int32
+          maximum: 200
+          minimum: 1
       responses:
         '200':
           description: Sandbox list
+          headers:
+            X-Next-Token:
+              schema:
+                type: string
+              description: Opaque next node-window cursor; empty on the final page. Empty filtered pages may have a next cursor.
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/ListedSandbox'
+        '400':
+          description: Invalid cursor or node window size
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '500':
           description: Unexpected backend error
           content:

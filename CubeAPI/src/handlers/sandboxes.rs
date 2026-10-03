@@ -85,7 +85,9 @@ pub async fn list_sandboxes(
     path = "/v2/sandboxes",
     params(ListSandboxesV2Query),
     responses(
-        (status = 200, description = "Sandbox list", body = [crate::models::ListedSandbox]),
+        (status = 200, description = "Sandbox list", body = [crate::models::ListedSandbox],
+            headers(("X-Next-Token" = String, description = "Opaque next node-window cursor; empty on the final page. Empty filtered pages may have a next cursor."))),
+        (status = 400, description = "Invalid cursor or node window size", body = ApiError),
         (status = 500, description = "Unexpected backend error", body = ApiError)
     )
 )]
@@ -103,13 +105,14 @@ pub async fn list_sandboxes_v2(
         )
         .await;
 
-    let list = state
+    let page = state
         .services
         .sandboxes
-        .list(
+        .list_page(
             params.metadata.as_deref(),
             params.state.as_deref(),
             params.limit,
+            params.next_token.as_deref(),
         )
         .await?;
 
@@ -118,10 +121,10 @@ pub async fn list_sandboxes_v2(
         .log(
             LogEvent::new(LogLevel::Info, "api.response")
                 .field("handler", "list_sandboxes_v2")
-                .field_value("count", list.len()),
+                .field_value("count", page.items.len()),
         )
         .await;
-    Ok(Json(list))
+    Ok(([("X-Next-Token", page.next_token)], Json(page.items)))
 }
 
 // ─── GET /sandboxes/:sandboxID ────────────────────────────────────────────────

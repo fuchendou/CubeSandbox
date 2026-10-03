@@ -69,6 +69,11 @@ pub struct SandboxService {
     sandbox_domain: String,
 }
 
+pub struct SandboxPage {
+    pub items: Vec<crate::models::ListedSandbox>,
+    pub next_token: String,
+}
+
 impl SandboxService {
     pub fn new(
         cubemaster: CubeMasterClient,
@@ -113,6 +118,70 @@ impl SandboxService {
             .filter(|sb| filter_by_metadata(sb.metadata.as_ref(), metadata_filter))
             .filter(|sb| state_filter.as_ref().is_none_or(|state| &sb.state == state))
             .collect())
+    }
+
+    /// List one raw node window. Filtering may produce an empty intermediate page.
+    pub async fn list_page(
+        &self,
+        metadata_filter: Option<&str>,
+        state_filter: Option<&str>,
+        limit: i32,
+        next_token: Option<&str>,
+    ) -> AppResult<SandboxPage> {
+        if !(1..=200).contains(&limit) {
+            return Err(AppError::BadRequest(
+                "limit must be between 1 and 200 nodes".into(),
+            ));
+        }
+        let start_idx = match next_token {
+            None => 1,
+            Some(token) => token
+                .strip_prefix("cube-nodes-v1.")
+                .and_then(|value| value.parse::<i32>().ok())
+                .filter(|index| *index > 0)
+                .ok_or_else(|| AppError::BadRequest("invalid nextToken".into()))?,
+        };
+        let request = ListSandboxRequest {
+            request_id: new_request_id(),
+            instance_type: self.instance_type.clone(),
+            start_idx: Some(start_idx),
+            size: Some(limit),
+            host_id: None,
+            filter: None,
+        };
+        let response = self
+            .cubemaster
+            .list_sandboxes(&request)
+            .await
+            .map_err(params_error_or_internal)?;
+        ensure_create_result(response.ret.ret_code, response.ret.ret_msg)?;
+        // Node indices can be sparse; total is a count, not the final index.
+        let next_token = if response.size >= limit {
+            if response.end_idx < start_idx {
+                return Err(AppError::Internal(anyhow::anyhow!(
+                    "node pagination did not advance"
+                )));
+            }
+            let next = response.end_idx.checked_add(1).ok_or_else(|| {
+                AppError::Internal(anyhow::anyhow!("node pagination index overflow"))
+            })?;
+            format!("cube-nodes-v1.{next}")
+        } else {
+            String::new()
+        };
+        let state_filter = parse_state_filter(state_filter);
+        let items = response
+            .sandboxes
+            .into_iter()
+            .map(from_cubemaster_info)
+            .filter(|sandbox| filter_by_metadata(sandbox.metadata.as_ref(), metadata_filter))
+            .filter(|sandbox| {
+                state_filter
+                    .as_ref()
+                    .is_none_or(|state| &sandbox.state == state)
+            })
+            .collect();
+        Ok(SandboxPage { items, next_token })
     }
 
     pub async fn get_sandbox(&self, sandbox_id: &str) -> AppResult<SandboxDetail> {

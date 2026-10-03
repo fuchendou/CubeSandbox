@@ -1088,6 +1088,12 @@ pub struct ListSandboxResponse {
     pub request_id: String,
     #[serde(default, alias = "data")]
     pub sandboxes: Vec<SandboxInfo>,
+    #[serde(default)]
+    pub end_idx: i32,
+    #[serde(default)]
+    pub size: i32,
+    #[serde(default)]
+    pub total: i32,
     pub ret: RetCode,
 }
 

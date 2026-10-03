@@ -254,7 +254,10 @@ mod tests {
     };
     use axum::{
         extract::Json,
-        http::{header::RETRY_AFTER, StatusCode},
+        http::{
+            header::{HeaderName, RETRY_AFTER},
+            HeaderValue, StatusCode,
+        },
         routing::delete,
         Router,
     };
@@ -267,6 +270,137 @@ mod tests {
 
         let state = AppState::new(config, arc(NoopLogger)).await;
         TestServer::new(build_router(state)).expect("router should build")
+    }
+
+    #[tokio::test]
+    async fn inventory_cursor_traverses_empty_filtered_pages_and_sparse_node_indices() {
+        async fn list_page(Json(request): Json<Value>) -> Json<Value> {
+            assert_eq!(request["size"], 1);
+            let start = request["start_idx"].as_i64().unwrap_or(1).max(1);
+            let (end, size, data) = match start {
+                1 => (
+                    10,
+                    1,
+                    serde_json::json!([{
+                        "sandbox_id": "sb-paused", "host_id": "node-10", "status": 5,
+                        "template_id": "tpl-test"
+                    }]),
+                ),
+                11 => (
+                    20,
+                    1,
+                    serde_json::json!([{
+                        "sandbox_id": "sb-running", "host_id": "node-20", "status": 1,
+                        "template_id": "tpl-test"
+                    }]),
+                ),
+                21 => (-1, 0, serde_json::json!([])),
+                _ => panic!("unexpected node cursor {start}"),
+            };
+            Json(serde_json::json!({
+                "requestID": "page-test", "ret": {"ret_code": 0, "ret_msg": "ok"},
+                "end_idx": end, "size": size, "total": 2, "data": data
+            }))
+        }
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let master = tokio::spawn(async move {
+            axum::serve(
+                listener,
+                Router::new().route("/cube/sandbox/list", axum::routing::post(list_page)),
+            )
+            .await
+            .unwrap();
+        });
+        let mut config = ServerConfig::default();
+        config.cubemaster_url = format!("http://{address}");
+        config.cube_api_key = Some("inventory-test-key".to_string());
+        let server =
+            TestServer::new(build_router(AppState::new(config, arc(NoopLogger)).await)).unwrap();
+        let path = "/v2/sandboxes";
+        assert_eq!(
+            server
+                .get(path)
+                .add_query_param("limit", 1)
+                .add_query_param("state", "running")
+                .await
+                .status_code(),
+            StatusCode::UNAUTHORIZED
+        );
+        let first = server
+            .get(path)
+            .add_query_param("limit", 1)
+            .add_query_param("state", "running")
+            .add_header(
+                HeaderName::from_static("x-api-key"),
+                HeaderValue::from_static("inventory-test-key"),
+            )
+            .await;
+        assert_eq!(
+            first.status_code(),
+            StatusCode::OK,
+            "body: {}",
+            first.text()
+        );
+        assert_eq!(first.json::<Value>(), serde_json::json!([]));
+        assert_eq!(first.header("X-Next-Token"), "cube-nodes-v1.11");
+        let second = server
+            .get(path)
+            .add_query_param("limit", 1)
+            .add_query_param("state", "running")
+            .add_query_param("nextToken", "cube-nodes-v1.11")
+            .add_header(
+                HeaderName::from_static("x-api-key"),
+                HeaderValue::from_static("inventory-test-key"),
+            )
+            .await;
+        assert_eq!(second.status_code(), StatusCode::OK);
+        assert_eq!(second.json::<Value>()[0]["sandboxID"], "sb-running");
+        assert_eq!(second.header("X-Next-Token"), "cube-nodes-v1.21");
+        let last = server
+            .get(path)
+            .add_query_param("limit", 1)
+            .add_query_param("state", "running")
+            .add_query_param("nextToken", "cube-nodes-v1.21")
+            .add_header(
+                HeaderName::from_static("x-api-key"),
+                HeaderValue::from_static("inventory-test-key"),
+            )
+            .await;
+        assert_eq!(last.status_code(), StatusCode::OK);
+        assert_eq!(last.json::<Value>(), serde_json::json!([]));
+        assert_eq!(last.header("X-Next-Token"), "");
+        for invalid in ["invalid", "cube-nodes-v1.0", "cube-nodes-v1.2147483648"] {
+            assert_eq!(
+                server
+                    .get(path)
+                    .add_query_param("limit", 1)
+                    .add_query_param("nextToken", invalid)
+                    .add_header(
+                        HeaderName::from_static("x-api-key"),
+                        HeaderValue::from_static("inventory-test-key")
+                    )
+                    .await
+                    .status_code(),
+                StatusCode::BAD_REQUEST
+            );
+        }
+        for limit in [0, -1, 201] {
+            assert_eq!(
+                server
+                    .get(path)
+                    .add_query_param("limit", limit)
+                    .add_header(
+                        HeaderName::from_static("x-api-key"),
+                        HeaderValue::from_static("inventory-test-key")
+                    )
+                    .await
+                    .status_code(),
+                StatusCode::BAD_REQUEST
+            );
+        }
+        master.abort();
+        let _ = master.await;
     }
 
     #[tokio::test]

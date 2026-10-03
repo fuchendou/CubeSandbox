@@ -885,12 +885,14 @@ pub struct ListSandboxesQuery {
 /// Query params for GET /v2/sandboxes.
 #[derive(Debug, Deserialize, IntoParams)]
 #[into_params(parameter_in = Query)]
-#[allow(dead_code)]
 pub struct ListSandboxesV2Query {
     pub metadata: Option<String>,
     pub state: Option<String>,
+    /// Opaque node-window cursor returned in X-Next-Token; omit for the first page.
     #[serde(rename = "nextToken")]
     pub next_token: Option<String>,
+    /// Raw node window size, not the number of matching sandboxes.
+    #[param(minimum = 1, maximum = 200)]
     #[serde(default = "default_page_limit")]
     pub limit: i32,
 }
