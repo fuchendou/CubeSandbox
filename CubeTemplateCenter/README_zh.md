@@ -167,7 +167,7 @@ chart 会拒绝以下组合：
 | POST | `/cube/template/migrate` | CubeMaster（本地） | 提交 artifact migrate job（CLI 命令：`tpl merge`） |
 | GET | `/cube/template/migrate?job_id=...` | CubeMaster（本地） | 查询 migrate job 状态 |
 | GET / HEAD | `/cube/template/artifact/download` | TC（经 CubeMaster 反代） | 下载 artifact；S3-backed 时 302 到 presigned URL |
-| GET / POST | `/cube/template/compat` | TC（经 CubeMaster 反代） | 读写模板 compat 矩阵 |
+| GET / POST | `/cube/template/compat` | CubeMaster（本地） | 需要实时节点及组件版本缓存 |
 
 另外，`/cube/template/build/:build_id/status` 仍由 CubeMaster 本地服务，用于 `tpl commit` 的 build-status / build-watch。
 

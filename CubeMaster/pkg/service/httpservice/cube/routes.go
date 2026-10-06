@@ -120,8 +120,8 @@ func RegisterCubeRoutes(g *gin.RouterGroup) {
 	g.GET(TemplateBuildStatusAction+"/:build_id/status", handleTemplateBuildStatusAction)
 	g.GET(TemplateFromImageAction, getTemplateFromImageGinHandler)
 
-	g.GET(TemplateCompatAction, proxyToTemplateCenter)
-	g.POST(TemplateCompatAction, proxyToTemplateCenter)
+	g.GET(TemplateCompatAction, getTemplateCompatGinHandler)
+	g.POST(TemplateCompatAction, updateTemplateCompatGinHandler)
 	g.GET(TemplateArtifactDownloadAction, proxyToTemplateCenter)
 	g.HEAD(TemplateArtifactDownloadAction, proxyToTemplateCenter)
 
@@ -160,13 +160,11 @@ func RegisterCubeRoutes(g *gin.RouterGroup) {
 // process-local template query caches, which are only coherent on the
 // process that performs the writes (CubeMaster).
 //
-// Mirrors the proxied subset of the Template + Artifact/CA + RootfsArtifact
-// block of RegisterCubeRoutes. Keep in sync with that function.
+// Registers the remaining standalone TC reads and file routes. The compat
+// matrix needs CubeMaster's live node cache, so Master serves it directly.
 func RegisterTemplateRoutes(g *gin.RouterGroup) {
 	// Uncached reads + build status + file serving only. The cached reads
 	// (info/list) and every write live on CubeMaster — see the doc comment.
-	g.GET(TemplateCompatAction, getTemplateCompatGinHandler)
-	g.POST(TemplateCompatAction, updateTemplateCompatGinHandler)
 	g.GET(TemplateBuildStatusAction+"/:build_id/status", handleTemplateBuildStatusAction)
 	g.GET(TemplateFromImageAction, getTemplateFromImageGinHandler)
 	g.GET(TemplateArtifactDownloadAction, downloadTemplateArtifactGinHandler)

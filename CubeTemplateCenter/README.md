@@ -8,7 +8,7 @@ The route layer is shared from `CubeMaster/pkg/service/httpservice` (`RegisterTe
 
 TC owns the build (pull, ext4, fingerprint, S3 upload) and the artifact data (local file + S3 object).
 CubeMaster owns the template API, job state, cross-node distribution, and deletion orchestration.
-Compat matrix and download routes: CubeMaster reverse-proxies to TC (302 to S3 for downloads).
+CubeMaster serves the compat matrix locally because it needs live node and component-version caches; artifact downloads are reverse-proxied to TC (302 to S3 for downloads).
 
 ## Run
 
@@ -81,7 +81,6 @@ Public routes reverse-proxied from CubeMaster (actually served by TC):
 | Method | Path | Purpose |
 |---|---|---|
 | GET / HEAD | `/cube/template/artifact/download` | artifact download (streams from local disk; 302 to the presigned URL for S3 artifacts) |
-| GET / POST | `/cube/template/compat` | template compat matrix read/write |
 
 Build-status polls (`/cube/template/build/:build_id/status`, `/cube/template/from-image?job_id=`) stay local on CubeMaster (they read the job rows Master writes); TC registers them too for direct-to-TC access.
 

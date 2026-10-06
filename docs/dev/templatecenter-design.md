@@ -104,7 +104,7 @@ Public `/cube/template*` routes on CubeMaster:
 | --- | --- | --- |
 | POST `/cube/template`, `/from-image`, `/redo`; DELETE; GET; PUT alias | CubeMaster (local) | cubelet RPCs, process-local caches, or forward-build env |
 | GET `/cube/template/build/:id/status`, GET `/from-image` | CubeMaster (local) | plain DB reads on master-owned rows; proxying made create-200/poll-502 when TC was down |
-| GET/POST `/cube/template/compat` | proxied to TC | uncached DB read/write |
+| GET/POST `/cube/template/compat` | CubeMaster (local) | needs live node and component-version caches |
 | GET/HEAD `/cube/template/artifact/download` | proxied to TC | file serving / S3 redirect |
 | GET `/cube/template/artifact/...` (rootfs, CA) | CubeMaster (local) | cubelet pulls from the shared disk via master |
 

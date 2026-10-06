@@ -131,7 +131,7 @@ CubeMaster 上对外暴露的 `/cube/template*` 路由：
 | GET `/cube/template/build/:id/status` | CubeMaster（本地） | `tpl commit` 的 build-status / build-watch 读取的是 master 本地 job 行 |
 | GET `/cube/template/from-image?job_id=...` | CubeMaster（本地） | `from-image` job 轮询读取 master 持久化状态 |
 | GET `/cube/template/migrate?job_id=...` | CubeMaster（本地） | migrate job 轮询读取 master 持久化状态 |
-| GET / POST `/cube/template/compat` | 反代到 TC | 无缓存的 DB 读写 |
+| GET / POST `/cube/template/compat` | CubeMaster（本地） | 需要实时节点及组件版本缓存 |
 | GET / HEAD `/cube/template/artifact/download` | 反代到 TC | 文件服务 / S3 重定向 |
 | GET `/cube/rootfs-artifact?...` 等元数据接口 | CubeMaster（本地） | 返回的是 master 维护的 artifact 行与模板元数据 |
 

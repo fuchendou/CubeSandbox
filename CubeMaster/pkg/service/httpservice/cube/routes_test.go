@@ -66,6 +66,8 @@ func TestCubeRoutesTemplateWritesStayOnCubeMaster(t *testing.T) {
 		"GET /cube/template/migrate":                "getTemplateMigrateStatusAction",
 		"GET /cube/template/build/:build_id/status": "handleTemplateBuildStatusAction",
 		"GET /cube/template/from-image":             "getTemplateFromImageGinHandler",
+		"GET /cube/template/compat":                 "getTemplateCompatGinHandler",
+		"POST /cube/template/compat":                "updateTemplateCompatGinHandler",
 	}
 	for route, wantHandler := range localRoutes {
 		method, path, _ := strings.Cut(route, " ")
@@ -84,15 +86,12 @@ func TestCubeRoutesTemplateWritesStayOnCubeMaster(t *testing.T) {
 }
 
 // TestCubeRoutesTemplateProxyRemainder pins the routes that are still proxied
-// to CubeTemplateCenter: the compat matrix (plain DB read/write) and the
-// artifact download (file serving / S3 redirect). Neither goes through the
-// process-local template caches, so cross-process coherency does not apply.
+// to CubeTemplateCenter: artifact downloads (file serving / S3 redirect).
+// The compat matrix reads live node and version caches on CubeMaster.
 func TestCubeRoutesTemplateProxyRemainder(t *testing.T) {
 	r := newRouteInspectEngine(t, RegisterCubeRoutes)
 
 	proxiedRoutes := []string{
-		"GET /cube/template/compat",
-		"POST /cube/template/compat",
 		"GET /cube/template/artifact/download",
 		"HEAD /cube/template/artifact/download",
 	}
@@ -126,6 +125,8 @@ func TestTemplateCenterRoutesExcludeWritesAndCachedReads(t *testing.T) {
 		"POST /cube/template/redo",
 		"POST /cube/template/migrate",
 		"GET /cube/template/migrate",
+		"GET /cube/template/compat",
+		"POST /cube/template/compat",
 	}
 	for _, route := range absent {
 		method, path, _ := strings.Cut(route, " ")
@@ -135,8 +136,6 @@ func TestTemplateCenterRoutesExcludeWritesAndCachedReads(t *testing.T) {
 	}
 
 	present := []string{
-		"GET /cube/template/compat",
-		"POST /cube/template/compat",
 		"GET /cube/template/build/:build_id/status",
 		"GET /cube/template/from-image",
 		"GET /cube/template/artifact/download",
